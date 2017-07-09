@@ -30,6 +30,20 @@ type Server struct {
 	MaxQueryBytes int
 }
 
+// Serve listens on the finger port and serves connections with the given
+// handler. This sets reasonable read/write timeouts. Please see the source
+// for the exact timeouts which should be generously high.
+func Serve(h Handler) error {
+	s := &Server{
+		Handler:       h,
+		ReadTimeout:   5 * time.Minute,
+		WriteTimeout:  5 * time.Minute,
+		MaxQueryBytes: 4096,
+	}
+
+	return s.ListenAndServe()
+}
+
 // ListenAndServe listens on the TCP network address s.Addr and then
 // calls Serve to handle incoming connections. If s.Addr is blank,
 // ":finger" is used.
