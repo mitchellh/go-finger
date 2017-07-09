@@ -17,7 +17,7 @@ import "github.com/mitchellh/go-finger"
 ### Server
 
 ```go
-go finger.Serve(finger.HandlerFunc(func(w io.Write, q *finger.Query) {
+go finger.Serve(finger.HandlerFunc(func(ctx context.Context, w io.Write, q *finger.Query) {
 	w.Write([]byte(fmt.Sprintf("Hello %q", q.Username)))
 }))
 ```
