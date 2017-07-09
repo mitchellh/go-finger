@@ -2,35 +2,19 @@ package finger
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"net"
-	"os"
 	"os/exec"
 	"testing"
 )
 
-func TestMain(m *testing.M) {
-	// Verify we can listen on the finger port
-	ln, err := net.Listen("tcp", ":finger")
-	if err != nil {
-		println("Must run as root to be able to listen on port 79 for tests", err.Error())
-		os.Exit(1)
-	}
-	ln.Close()
-
-	os.Exit(m.Run())
-}
-
 func TestServerServeConn(t *testing.T) {
-	// Create a listener
-	ln, err := net.Listen("tcp", ":finger")
-	if err != nil {
-		t.Fatalf("err: %s", err)
-	}
+	ln := testFingerLn(t)
 	defer ln.Close()
 
 	// Setup the handler
-	handler := func(w io.Writer, q *Query) {
+	handler := func(ctx context.Context, w io.Writer, q *Query) {
 		w.Write([]byte("received!"))
 	}
 
@@ -39,12 +23,50 @@ func TestServerServeConn(t *testing.T) {
 	go s.Serve(ln)
 
 	// Use the finger command to run it
-	actual, err := exec.Command("finger", "foo@127.0.0.1").Output()
+	actual := testFinger(t, "foo@127.0.0.1")
+	if !bytes.Contains(actual, []byte("received!")) {
+		t.Fatalf("bad: %s", actual)
+	}
+}
+
+func TestServerServeConn_maxQueryBytes(t *testing.T) {
+	ln := testFingerLn(t)
+	defer ln.Close()
+
+	// Setup the handler
+	handler := func(ctx context.Context, w io.Writer, q *Query) {
+		panic("don't call me!")
+	}
+
+	// Serve
+	s := &Server{Handler: HandlerFunc(handler)}
+	s.MaxQueryBytes = 4
+	go s.Serve(ln)
+
+	// Use the finger command to run it
+	testFinger(t, "toomanybytes@127.0.0.1")
+}
+
+func testFingerLn(t *testing.T) net.Listener {
+	ln, err := net.Listen("tcp", ":finger")
+	if err != nil {
+		t.Skipf("can't listen on finger port: %s", err)
+		t.SkipNow()
+	}
+
+	return ln
+}
+
+func testFinger(t *testing.T, query string) []byte {
+	if _, err := exec.LookPath("finger"); err != nil {
+		t.Skipf("finger not found")
+		t.SkipNow()
+	}
+
+	actual, err := exec.Command("finger", query).Output()
 	if err != nil {
 		t.Fatalf("err: %s", err)
 	}
 
-	if !bytes.Contains(actual, []byte("received!")) {
-		t.Fatalf("bad: %s", actual)
-	}
+	return actual
 }

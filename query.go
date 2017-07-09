@@ -1,6 +1,7 @@
 package finger
 
 import (
+	"net"
 	"regexp"
 	"strings"
 )
@@ -9,6 +10,8 @@ import (
 type Query struct {
 	Username string   // Username, can be blank
 	Hostname []string // Hostname (zero or more)
+
+	RemoteAddr net.Addr // RemoteAddr set by Server, no effect on clients
 }
 
 // ParseQuery parses the line to determine the finger query. According to

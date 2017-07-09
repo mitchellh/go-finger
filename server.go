@@ -5,11 +5,26 @@ import (
 	"context"
 	"io"
 	"net"
+	"time"
 )
 
 type Server struct {
 	Addr    string
 	Handler Handler
+
+	// ReadTimeout is the maximum duration before timing out reads of the
+	// response. This sets a deadline on the connection and isn't a handler
+	// timeout.
+	ReadTimeout time.Duration
+
+	// WriteTimeout is the maximum duration before timing out writes of the
+	// response. This sets a deadline on the connection and isn't a handler
+	// timeout.
+	WriteTimeout time.Duration
+
+	// MaxQueryBytes is the maximum amount of bytes that will be read from
+	// the connection to determine the query.
+	MaxQueryBytes int
 }
 
 // ListenAndServe listens on the TCP network address s.Addr and then
@@ -42,6 +57,7 @@ func (s *Server) Serve(l net.Listener) error {
 			return err
 		}
 
+		s.setupConn(c)
 		go s.ServeConn(context.Background(), c)
 	}
 }
@@ -51,8 +67,14 @@ func (s *Server) ServeConn(ctx context.Context, conn io.ReadWriteCloser) error {
 	// Close the connection once we're done in any case
 	defer conn.Close()
 
+	// If we have a maximum amount to read, then setup a limit
+	var r io.Reader = conn
+	if s.MaxQueryBytes > 0 {
+		r = io.LimitReader(conn, int64(s.MaxQueryBytes))
+	}
+
 	// Read the query line
-	buf := bufio.NewReader(conn)
+	buf := bufio.NewReader(r)
 	line, err := buf.ReadString('\n')
 	if err != nil {
 		return err
@@ -64,6 +86,22 @@ func (s *Server) ServeConn(ctx context.Context, conn io.ReadWriteCloser) error {
 		return err
 	}
 
-	s.Handler.ServeFinger(conn, query)
+	// If we have a net conn then setup the remote addr
+	if nc, ok := conn.(net.Conn); ok {
+		query.RemoteAddr = nc.RemoteAddr()
+	}
+
+	s.Handler.ServeFinger(ctx, conn, query)
 	return nil
+}
+
+func (s *Server) setupConn(c net.Conn) {
+	t0 := time.Now()
+	if s.ReadTimeout > 0 {
+		c.SetReadDeadline(t0.Add(s.ReadTimeout))
+	}
+
+	if s.WriteTimeout > 0 {
+		c.SetWriteDeadline(t0.Add(s.WriteTimeout))
+	}
 }
