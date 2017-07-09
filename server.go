@@ -8,6 +8,9 @@ import (
 	"time"
 )
 
+// Server defines parameters for running a Finger server. The zero value
+// of a Server is a valid configuration, though every request will be
+// closed immediately since no handler is set.
 type Server struct {
 	Addr    string
 	Handler Handler
@@ -91,7 +94,10 @@ func (s *Server) ServeConn(ctx context.Context, conn io.ReadWriteCloser) error {
 		query.RemoteAddr = nc.RemoteAddr()
 	}
 
-	s.Handler.ServeFinger(ctx, conn, query)
+	if s.Handler != nil {
+		s.Handler.ServeFinger(ctx, conn, query)
+	}
+
 	return nil
 }
 
