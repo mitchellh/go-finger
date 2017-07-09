@@ -7,5 +7,3 @@ The [finger protocol](https://tools.ietf.org/html/rfc1288) is an extremely
 simple TCP protocol. It can be implemented without a library cleanly in only
 a few dozen lines of code but a library helps ensure correctness and handles
 RFC-compliant request parsing automatically.
-
-
